@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; img-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; media-src 'self'; object-src 'self'; child-src 'self'; form-action 'none'; base-uri 'self'" />
+<meta http-equiv="X-XSS-Protection"  content="1;mode=block" always>
+<meta http-equiv="Referrer-Policy" content="no-referrer, strict-origin-when-cross-origin"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>使用Nix创建个人博客</title><!-- Begin Jekyll SEO tag v2.7.1 -->
+<meta name="generator" content="Jekyll v4.2.0" />
+<meta property="og:title" content="使用Nix创建个人博客" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言 在讲打包之前，我先讲下我的博客是如何创建与部署的，做为前面讲创建开发环境的延伸。" />
+<meta property="og:description" content="前言 在讲打包之前，我先讲下我的博客是如何创建与部署的，做为前面讲创建开发环境的延伸。" />
+<link rel="canonical" href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/11/create-personal-blog-using-nix.html" />
+<meta property="og:url" content="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/11/create-personal-blog-using-nix.html" />
+<meta property="og:site_name" content="c4droid’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-11T13:12:42+08:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="使用Nix创建个人博客" />
+<script type="application/ld+json">
+{"description":"前言 在讲打包之前，我先讲下我的博客是如何创建与部署的，做为前面讲创建开发环境的延伸。","headline":"使用Nix创建个人博客","dateModified":"2021-02-11T13:12:42+08:00","datePublished":"2021-02-11T13:12:42+08:00","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/11/create-personal-blog-using-nix.html"},"url":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/11/create-personal-blog-using-nix.html","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" type="text/css" href="/assets/main-hacker.css"></head>
+<body>
+    <div class="container"><header>
+  <div class="menu">
+    <ul><li><a href="/">c4droid&#39;s Blog</a></li><li><a href="/about/">About</a></li></ul>
+  </div>
+</header>
+<main>
+      <h1 id="前言">前言</h1>
+<p>在讲打包之前，我先讲下我的博客是如何创建与部署的，做为前面讲创建开发环境的延伸。</p>
+
+<h2 id="环境搭建">环境搭建</h2>
+<p>我的博客使用Jekyll作为引擎来搭建的，Jekyll使用Ruby编写，Nix对Ruby的开发支持也很好，可以做到只要在机器上能安装Nix和Git，就能够在不污染本地全局环境下编写博客。</p>
+
+<p>在搭建博客时，需要创建一个目录来存放我们的博客源码，之后我们可以调用nix-shell来创建初始环境，具体命令为：<code class="language-plaintext highlighter-rouge">nix-shell -p jekyll --run "jekyll new ."</code>。</p>
+
+<p>建立了初始环境后，需要改动一下Gemfile，这里要把关于JRuby和Win32的gem全删了，另外把jekyll gem换成github-pages gem。然后用bundle生成Gemfile.lock，具体命令为：<code class="language-plaintext highlighter-rouge">nix-shell -p bundler --run "bundler package --no-install --path vendor"</code>。生成Gemfile.lock后，还需要生成gemset.nix，这里需要使用bundix工具，bundix通过生成的Gemfile.lock将gems转化成nix来使得整个环境下面的Ruby依赖完全用Nix来管理。生成gemset.nix的具体命令为：<code class="language-plaintext highlighter-rouge">$(nix-build '&lt;nixpkgs&gt;' -A bundix)/bin/bundix</code>。</p>
+
+<p>在生成了Gemfile.lock和gemset.nix之后，需要删除.bundle、vendor和result，这些是在初始化环境的时候所构建出来的，对于整个Blog的写作环境来说无关紧要。之后就可以创建shell.nix来对写作环境做配置，使写作环境Nix化：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">with</span> <span class="kr">import</span> <span class="o">&lt;</span><span class="nv">nixpkgs</span><span class="o">&gt;</span> <span class="p">{};</span>
+<span class="kd">let</span>
+  <span class="nv">jekyllEnv</span> <span class="o">=</span> <span class="nv">bundlerEnv</span> <span class="kr">rec</span> <span class="p">{</span>
+    <span class="nv">name</span> <span class="o">=</span> <span class="s2">"jekyll"</span><span class="p">;</span>
+    <span class="nv">gemfile</span> <span class="o">=</span> <span class="sx">./Gemfile</span><span class="p">;</span>
+    <span class="nv">lockfile</span> <span class="o">=</span> <span class="sx">./Gemfile.lock</span><span class="p">;</span>
+    <span class="nv">gemset</span> <span class="o">=</span> <span class="sx">./gemset.nix</span><span class="p">;</span>
+  <span class="p">};</span>
+<span class="kn">in</span>
+<span class="nv">mkShell</span> <span class="p">{</span>
+  <span class="nv">buildInputs</span> <span class="o">=</span> <span class="p">[</span> <span class="nv">jekyllEnv</span> <span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>这里使用了bundlerEnv，在Nix中定义一个bundle环境。在对博客配置做好更改之后，可以使用命令：<code class="language-plaintext highlighter-rouge">nix-shell --run "jekyll serve --watch"</code>来启动本地预览。</p>
+
+<p>在创建新文章这块，我使用了rake工具，使得创建文章半自动化，只需要输入博客文章的URL、标题、分类和标签后，就会自动生成一篇白板文章，写完后就可以发布。</p>
+
+<p>我的Rakefile：</p>
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">task</span> <span class="ss">:default</span> <span class="o">=&gt;</span> <span class="ss">:new</span>
+<span class="nb">require</span> <span class="s1">'fileutils'</span>
+<span class="n">desc</span> <span class="s2">"Create new post"</span>
+<span class="n">task</span> <span class="ss">:new</span> <span class="k">do</span>
+  <span class="nb">puts</span> <span class="s2">"[-] Please input new post URL: "</span>
+  <span class="vi">@url</span> <span class="o">=</span> <span class="no">STDIN</span><span class="p">.</span><span class="nf">gets</span><span class="p">.</span><span class="nf">chomp</span>
+  <span class="nb">puts</span> <span class="s2">"[-] Please input post title: "</span>
+  <span class="vi">@name</span> <span class="o">=</span> <span class="no">STDIN</span><span class="p">.</span><span class="nf">gets</span><span class="p">.</span><span class="nf">chomp</span>
+  <span class="nb">puts</span> <span class="s2">"[-] Please input the categories: "</span>
+  <span class="vi">@categories</span> <span class="o">=</span> <span class="no">STDIN</span><span class="p">.</span><span class="nf">gets</span><span class="p">.</span><span class="nf">chomp</span>
+  <span class="nb">puts</span> <span class="s2">"[-] Please input the tags: "</span>
+  <span class="vi">@tags</span> <span class="o">=</span> <span class="no">STDIN</span><span class="p">.</span><span class="nf">gets</span><span class="p">.</span><span class="nf">chomp</span>
+  <span class="vi">@slug</span> <span class="o">=</span> <span class="s2">"</span><span class="si">#{</span><span class="vi">@url</span><span class="si">}</span><span class="s2">"</span>
+  <span class="vi">@slug</span> <span class="o">=</span> <span class="vi">@slug</span><span class="p">.</span><span class="nf">downcase</span><span class="p">.</span><span class="nf">strip</span><span class="p">.</span><span class="nf">gsub</span><span class="p">(</span><span class="s1">' '</span><span class="p">,</span> <span class="s1">'-'</span><span class="p">)</span>
+  <span class="vi">@date</span> <span class="o">=</span> <span class="no">Time</span><span class="p">.</span><span class="nf">now</span><span class="p">.</span><span class="nf">strftime</span><span class="p">(</span><span class="s2">"%F"</span><span class="p">)</span>
+  <span class="vi">@post</span> <span class="o">=</span> <span class="s2">"_posts/</span><span class="si">#{</span><span class="vi">@date</span><span class="si">}</span><span class="s2">-</span><span class="si">#{</span><span class="vi">@slug</span><span class="si">}</span><span class="s2">.md"</span>
+  <span class="k">if</span> <span class="no">File</span><span class="p">.</span><span class="nf">exist?</span><span class="p">(</span><span class="vi">@post</span><span class="p">)</span>
+    <span class="nb">abort</span><span class="p">(</span><span class="s2">"[!] Create new post failed, because the </span><span class="si">#{</span><span class="vi">@post</span><span class="si">}</span><span class="s2"> is exists."</span><span class="p">)</span>
+  <span class="k">end</span>
+  <span class="no">FileUtils</span><span class="p">.</span><span class="nf">touch</span><span class="p">(</span><span class="vi">@post</span><span class="p">)</span>
+  <span class="nb">open</span><span class="p">(</span><span class="vi">@post</span><span class="p">,</span> <span class="s1">'a'</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">file</span><span class="o">|</span>
+    <span class="n">file</span><span class="p">.</span><span class="nf">puts</span> <span class="s2">"---"</span>
+    <span class="n">file</span><span class="p">.</span><span class="nf">puts</span> <span class="s2">"layout: post"</span>
+    <span class="n">file</span><span class="p">.</span><span class="nf">puts</span> <span class="s2">"title: </span><span class="si">#{</span><span class="vi">@name</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">file</span><span class="p">.</span><span class="nf">puts</span> <span class="s2">"date: </span><span class="si">#{</span><span class="no">Time</span><span class="p">.</span><span class="nf">now</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">file</span><span class="p">.</span><span class="nf">puts</span> <span class="s2">"categories: </span><span class="si">#{</span><span class="vi">@categories</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">file</span><span class="p">.</span><span class="nf">puts</span> <span class="s2">"tags: </span><span class="si">#{</span><span class="vi">@tags</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">file</span><span class="p">.</span><span class="nf">puts</span> <span class="s2">"---"</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<h2 id="构建部署与备份">构建、部署与备份</h2>
+<p>构建上，依靠前面的shell.nix，在写好文章之后可以用<code class="language-plaintext highlighter-rouge">nix-shell --run "jekyll build"</code>来构建。</p>
+
+<p>部署上面，我在我的GitHub上面开了一个仓库，总共两个分支，master分支是用来存放构建好的页面，也就是用过引擎编译好的网页，source分支用来存放源码。</p>
+
+<p>备份上我选择了跟构建好的页面一起放进一个仓库，存放方式即前面提到的双分支存储。在source分支里面我用了git worktree将master分支转到Jekyll生成页面那个目录，当构建完毕之后，我可以直接进去通过git手动提交更新，后续会转成用rake来自动化这个过程，目前还是半自动部署先凑合。</p>
+
+<h2 id="环境维护">环境维护</h2>
+<p>关于环境的维护，只需要删除Gemfile.lock和gemset.nix再按照上面的方法重新生成就可以了。</p>
+
+
+    </main><footer>
+  Powered by Jekyll and GNU Guix, designed by <a href="https://github.com/c4dr01d" target="_blank">c4droid</a>. Since 2021
+</footer>
+</div>
+  </body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; img-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; media-src 'self'; object-src 'self'; child-src 'self'; form-action 'none'; base-uri 'self'" />
+<meta http-equiv="X-XSS-Protection"  content="1;mode=block" always>
+<meta http-equiv="Referrer-Policy" content="no-referrer, strict-origin-when-cross-origin"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Nix语言语法</title><!-- Begin Jekyll SEO tag v2.7.1 -->
+<meta name="generator" content="Jekyll v4.2.0" />
+<meta property="og:title" content="Nix语言语法" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言 在讲开发环境之前，先要讲下Nix语言。Nix语言是Nix的核心，它用来描述软件包的打包过程、环境的配置。Nix是纯函数式语言，具有惰性求值等特性。纯（Purity）代表在程序执行过程中没有任何的副作用，例如给变量赋值。因为我们的开发环境需要用Nix写开发环境的配置，所以在这里先讲一下语法。" />
+<meta property="og:description" content="前言 在讲开发环境之前，先要讲下Nix语言。Nix语言是Nix的核心，它用来描述软件包的打包过程、环境的配置。Nix是纯函数式语言，具有惰性求值等特性。纯（Purity）代表在程序执行过程中没有任何的副作用，例如给变量赋值。因为我们的开发环境需要用Nix写开发环境的配置，所以在这里先讲一下语法。" />
+<link rel="canonical" href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/09/syntax-for-nix-language.html" />
+<meta property="og:url" content="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/09/syntax-for-nix-language.html" />
+<meta property="og:site_name" content="c4droid’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-09T09:01:53+08:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Nix语言语法" />
+<script type="application/ld+json">
+{"description":"前言 在讲开发环境之前，先要讲下Nix语言。Nix语言是Nix的核心，它用来描述软件包的打包过程、环境的配置。Nix是纯函数式语言，具有惰性求值等特性。纯（Purity）代表在程序执行过程中没有任何的副作用，例如给变量赋值。因为我们的开发环境需要用Nix写开发环境的配置，所以在这里先讲一下语法。","headline":"Nix语言语法","dateModified":"2021-02-09T09:01:53+08:00","datePublished":"2021-02-09T09:01:53+08:00","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/09/syntax-for-nix-language.html"},"url":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/09/syntax-for-nix-language.html","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" type="text/css" href="/assets/main-hacker.css"></head>
+<body>
+    <div class="container"><header>
+  <div class="menu">
+    <ul><li><a href="/">c4droid&#39;s Blog</a></li><li><a href="/about/">About</a></li></ul>
+  </div>
+</header>
+<main>
+      <h1 id="前言">前言</h1>
+<p>在讲开发环境之前，先要讲下Nix语言。Nix语言是Nix的核心，它用来描述软件包的打包过程、环境的配置。Nix是纯函数式语言，具有惰性求值等特性。纯（Purity）代表在程序执行过程中没有任何的副作用，例如给变量赋值。因为我们的开发环境需要用Nix写开发环境的配置，所以在这里先讲一下语法。</p>
+
+<h2 id="语句结束符">语句结束符</h2>
+<p>Nix中表示一行语句结束使用分号。在集合中，分号用于分隔集合元素。</p>
+
+<h2 id="类型">类型</h2>
+<p>在Nix中，有十个基本类型：字符串、整型数、浮点数、路径、URI、布尔值、Null、列表、集合、函数。其他类型可以自己扩展。</p>
+
+<h2 id="函数">函数</h2>
+<p>在Nix中，定义一个函数使用这种形式：<code class="language-plaintext highlighter-rouge">fun_name = argument: body</code>。当没有制定fun_name时，该函数是一个匿名函数。例如定义一个求某个数平方的函数：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">square</span> <span class="o">=</span> <span class="nv">x</span><span class="p">:</span> <span class="nv">x</span> <span class="o">*</span> <span class="nv">x</span>
+</code></pre></div></div>
+<p>当函数的参数是集合时，Nix会自动解构，例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">concat_a_and_b</span> <span class="o">=</span> <span class="nv">set</span><span class="p">:</span> <span class="nv">set</span><span class="o">.</span><span class="nv">a</span> <span class="o">+</span> <span class="nv">set</span><span class="o">.</span><span class="nv">b</span>
+<span class="nv">concat_a_and_b</span> <span class="p">{</span> <span class="nv">a</span> <span class="o">=</span> <span class="s2">"hello"</span><span class="p">;</span> <span class="nv">b</span> <span class="o">=</span> <span class="s2">"world"</span><span class="p">;</span> <span class="p">}</span> <span class="o">=&gt;</span> <span class="s2">"hello world"</span>
+</code></pre></div></div>
+<p>需要给函数指定默认参数，可以用问号指定，例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">add</span> <span class="o">=</span> <span class="p">{</span> <span class="nv">a</span> <span class="o">?</span> <span class="mi">1</span><span class="p">,</span> <span class="nv">b</span> <span class="o">?</span> <span class="mi">2</span> <span class="p">}:</span> <span class="nv">a</span> <span class="o">+</span> <span class="nv">b</span>
+<span class="nv">add</span> <span class="p">{}</span> <span class="o">=&gt;</span> <span class="mi">3</span>
+<span class="nv">add</span> <span class="p">{</span> <span class="nv">a</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span> <span class="p">}</span> <span class="o">=&gt;</span> <span class="mi">7</span>
+</code></pre></div></div>
+<p>如果需要在函数中使用变长参数的话，有两种方式。第一种是使用<code class="language-plaintext highlighter-rouge">...</code>，第二种是使用<code class="language-plaintext highlighter-rouge">args @ { argument }</code>。例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">add</span> <span class="o">=</span> <span class="p">{</span> <span class="nv">a</span><span class="p">,</span> <span class="nv">b</span> <span class="p">}:</span> <span class="nv">a</span> <span class="o">+</span> <span class="nv">b</span>
+<span class="nv">add</span> <span class="p">{</span> <span class="nv">a</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span> <span class="nv">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="nv">c</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span> <span class="p">}</span> <span class="o">=&gt;</span> <span class="nv">unexpected</span> <span class="nv">argument</span> <span class="err">'</span><span class="nv">c</span><span class="err">'</span>
+<span class="nv">add</span> <span class="o">=</span> <span class="p">{</span> <span class="nv">a</span><span class="p">,</span> <span class="nv">b</span><span class="p">,</span> <span class="o">...</span> <span class="p">}:</span> <span class="nv">a</span> <span class="o">+</span> <span class="nv">b</span>
+<span class="nv">add</span> <span class="p">{</span> <span class="nv">a</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span> <span class="nv">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="nv">c</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span> <span class="p">}</span> <span class="o">=&gt;</span> <span class="mi">7</span>
+<span class="nv">add</span> <span class="o">=</span> <span class="nv">args</span> <span class="o">@</span> <span class="p">{</span> <span class="nv">a</span><span class="p">,</span> <span class="nv">b</span><span class="p">,</span> <span class="o">...</span> <span class="p">}:</span> <span class="nv">a</span> <span class="o">+</span> <span class="nv">b</span> <span class="o">+</span> <span class="nv">args</span><span class="o">.</span><span class="nv">c</span>
+<span class="nv">add</span> <span class="o">=</span> <span class="p">{</span> <span class="nv">a</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span> <span class="nv">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="nv">c</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span> <span class="p">}</span> <span class="o">=&gt;</span> <span class="mi">17</span>
+</code></pre></div></div>
+
+<h2 id="运算符">运算符</h2>
+<p>在Nix中，有20个运算符，除了常用的加减乘除以及逻辑运算符之外，有几个特殊的运算符。</p>
+
+<p><code class="language-plaintext highlighter-rouge">.</code>：选择用集合表示的属性路径
+<code class="language-plaintext highlighter-rouge">?</code>：判断属性路径中是否有此属性
+<code class="language-plaintext highlighter-rouge">++</code>：列表的链接
+<code class="language-plaintext highlighter-rouge">//</code>：返回由两个属性所组成的集合
+<code class="language-plaintext highlighter-rouge">-&gt;</code>：等价于<code class="language-plaintext highlighter-rouge">!e1 || e2</code></p>
+
+<h2 id="模块">模块</h2>
+<p>Nix支持模块，导入一个模块可以使用import语句。例如：</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Import module
+import &lt;nixpkgs&gt; {};
+# Import other nix source file
+import ./hello.nix;
+</code></pre></div></div>
+
+<h2 id="with语句">with语句</h2>
+<p>with语句用于简化程序，例如：</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Not use with statement
+{ lib, ... }: {
+  options = {
+    networking.hosts = lib.mkOption {
+      type = lib.types.attrsOf ( lib.types.listOf lib.types.str );
+      default = {};
+    };
+  };
+  ...
+}
+# Use with statement
+{ lib, ... }:
+with lib;
+{
+  options = {
+    networking.hosts = mkOption {
+      type = with types; attrsOf ( listOf str );
+      default = {};
+    };
+  };
+  ...
+}
+</code></pre></div></div>
+
+<h2 id="let--in语句">let .. in语句</h2>
+<p>let .. in语句用于定义一个局部变量然后应用于in后面的程序块，例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">let</span>
+  <span class="nv">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="nv">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="kn">in</span> <span class="nv">a</span> <span class="o">+</span> <span class="nv">b</span>
+<span class="o">=&gt;</span> <span class="mi">3</span>
+</code></pre></div></div>
+
+<h2 id="inherit语句">inherit语句</h2>
+<p>inherit语句是从其他语法作用域中复制变量，例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">buildPythonPackage</span> <span class="kr">rec</span> <span class="p">{</span>
+  <span class="nv">pname</span> <span class="o">=</span> <span class="s2">"hello"</span><span class="p">;</span>
+  <span class="nv">version</span> <span class="o">=</span> <span class="s2">"1.0"</span><span class="p">;</span>
+  <span class="nv">src</span> <span class="o">=</span> <span class="nv">fetchPypi</span> <span class="p">{</span>
+    <span class="kn">inherit</span> <span class="nv">pname</span> <span class="nv">version</span><span class="p">;</span>
+    <span class="nv">sha256</span> <span class="o">=</span> <span class="s2">"..."</span><span class="p">;</span>
+  <span class="p">};</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="rec语句">rec语句</h2>
+<p>rec语句用于将表达式做成集合，例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kr">rec</span> <span class="p">{</span>
+  <span class="nv">x</span> <span class="o">=</span> <span class="nv">y</span> <span class="o">-</span> <span class="mi">100</span><span class="p">;</span>
+  <span class="nv">y</span> <span class="o">=</span> <span class="mi">123</span><span class="p">;</span>
+<span class="p">}</span><span class="o">.</span><span class="nv">x</span>
+<span class="o">=&gt;</span> <span class="mi">23</span>
+</code></pre></div></div>
+
+<p>以上是Nix的基本语法，后面会讲述如何使用Nix来创建一个开发环境。</p>
+
+
+    </main><footer>
+  Powered by Jekyll and GNU Guix, designed by <a href="https://github.com/c4dr01d" target="_blank">c4droid</a>. Since 2021
+</footer>
+</div>
+  </body>
+</html>

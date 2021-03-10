@@ -1,0 +1,439 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.0">Jekyll</generator><link href="https://c4dr01d.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://c4dr01d.github.io/" rel="alternate" type="text/html" /><updated>2021-03-10T20:17:23+08:00</updated><id>https://c4dr01d.github.io/feed.xml</id><title type="html">c4droid’s Blog</title><subtitle>先天领周天，盖周天之变，化吾为王！</subtitle><entry><title type="html">使用Nix构建LFS</title><link href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/22/building-lfs-using-nix.html" rel="alternate" type="text/html" title="使用Nix构建LFS" /><published>2021-02-22T21:19:37+08:00</published><updated>2021-02-22T21:19:37+08:00</updated><id>https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/22/building-lfs-using-nix</id><content type="html" xml:base="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/22/building-lfs-using-nix.html">&lt;h1 id=&quot;前言&quot;&gt;前言&lt;/h1&gt;
+&lt;p&gt;前面讲了如何使用Nix创建一个Blog，作为讲如何用Nix打包的过渡。最近这段时间我在用Nix打包Linux From Scratch以及使用Nix仿照NixOS的操作系统模块来编写属于我自己的Linux发行版配置，借着这个契机，在这讲一下如何使用Nix打包。&lt;/p&gt;
+
+&lt;h2 id=&quot;fhs万恶之源&quot;&gt;FHS，万恶之源&lt;/h2&gt;
+&lt;p&gt;在讲打包之前，需要说明一下FHS。FHS，全称文件系统层次结构标准（Filesystem Hierarchy Standard）。它定义了系统中每个区域的用途、所需要的最小构成的文件和目录，以及例外处理与矛盾处理。该标准有两层规范，第一层规范是系统根目录下面的各个目录应该要放什么文件数据，第二层是针对/usr和/var这两个目录的子目录的定义。&lt;/p&gt;
+
+&lt;p&gt;在大多数Linux发行版中都是使用的FHS标准来建立系统，而像NixOS和GNU Guix System这种使用自己编写的配置文件配置的且可重现的系统使用的是链接式（Content-Addressable）来建立系统。这种包管理方式通过在文件系统上建立一个store，包管理器将系统配置以及包定义通过编译器编译和构建之后就会把构建结果存放在store里，并通过软链接的方式链接到执行命令的文件夹下面，方便测试所编写的配置以及包是否能正常打包以及运行。&lt;/p&gt;
+
+&lt;h2 id=&quot;stdenvthe-sandbox&quot;&gt;stdenv，The sandbox&lt;/h2&gt;
+&lt;p&gt;Linux下面的大多数软件包基本上都是使用GNU Autotools开发和打包的，剩下的基本上是使用一些特殊的环境来开发和打包的，为了统一构建环境，Nix对这些构建环境进行整合，于是就有了标准环境（standard environment），即stdenv。&lt;/p&gt;
+
+&lt;p&gt;stdenv是一种类似于沙盒的构建环境，总共有3层，第一层是构建的工具链，第二层是抽象层，这一层主要是将底层的工具链进行包装，而第三层就是定义层，就是我们编写软件包定义的地方。&lt;/p&gt;
+
+&lt;p&gt;创建软件包一般需要如下几样东西：&lt;/p&gt;
+&lt;ol&gt;
+  &lt;li&gt;软件名称&lt;/li&gt;
+  &lt;li&gt;软件版本&lt;/li&gt;
+  &lt;li&gt;构建器以及需要传入构建器的参数&lt;/li&gt;
+  &lt;li&gt;软件源码和该软件包的Sha256值&lt;/li&gt;
+  &lt;li&gt;构建该软件包所需的依赖&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;derivation构建后的软件&quot;&gt;Derivation，构建后的软件&lt;/h2&gt;
+&lt;p&gt;在编写好软件包定义之后，通过在default.nix声明软件包定义，执行nix-build命令就可以构建。如果开了flake支持的话，可以用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nix build .#...&lt;/code&gt;命令来构建。构建后的软件包就是Derivation，简称drv。Derivation里面的内容一般如下：&lt;/p&gt;
+&lt;div class=&quot;language-json highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+  &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;/nix/store/8wanfzmd6vk2rqsx33rdmkilnqhm1m8i-foo.drv&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;outputs&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;out&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+        &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;path&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;/nix/store/j95dfna6sdq7nm44im29ia7n3k3s5643-foo&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;},&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;inputSrcs&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;/nix/store/5d1i99yd1fy4wkyx85iz5bvh78j2j96r-builder.sh&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;inputDrvs&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;/nix/store/2vxpxx79j3chbqspadvh0qny5pnxbq5m-bash-4.4-p23.drv&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+        &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;out&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;},&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;platform&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;x86_64-darwin&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;builder&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;/nix/store/rq1inyhyr4gddgc5gxdid38iwn7769d7-bash-4.4-p23/bin/bash&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;args&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;/nix/store/5d1i99yd1fy4wkyx85iz5bvh78j2j96r-builder.sh&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;env&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;builder&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;/nix/store/rq1inyhyr4gddgc5gxdid38iwn7769d7-bash-4.4-p23/bin/bash&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;name&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;foo&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;out&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;/nix/store/j95dfna6sdq7nm44im29ia7n3k3s5643-foo&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+      &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;system&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;x86_64-darwin&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+  &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;通过drv里面的内容，Nix会构建软件包，并放入store中。&lt;/p&gt;
+
+&lt;h2 id=&quot;linux-from-scratch自己动手丰衣足食&quot;&gt;Linux From Scratch，自己动手，丰衣足食&lt;/h2&gt;
+&lt;p&gt;Linux From Scratch，简称LFS，它是一本手册，教你从源码构建属于你自己的Linux发行版。由于有了Nix这种可重现的包管理器，通过它，可以让我们很方便的切换LFS的版本。&lt;/p&gt;
+
+&lt;p&gt;LFS的构建过程主要分三个大步骤：构建临时系统，构建基础系统，构建用户空间。构建临时和基础系统是属于LFS的部分，构建用户空间是属于BLFS（Beyound Linux From Scratch）的部分。&lt;/p&gt;
+
+&lt;p&gt;目前我用Nix来构建LFS还停留在构建临时系统阶段，毕竟构建LFS也不是一天都能完成的。&lt;/p&gt;
+
+&lt;h2 id=&quot;打包its-magic&quot;&gt;打包，It’s magic！&lt;/h2&gt;
+&lt;p&gt;终于到打包的部分了。在Nix里面打包，简而言之就是编写derivation nix文件然后构建成drv的过程。下面以GNU hello为例，说明如何使用Nix打包。&lt;/p&gt;
+
+&lt;p&gt;首先创建一个工作目录，然后在工作目录里面创建三个文件：builder.sh、autotools.nix、default.nix。&lt;/p&gt;
+
+&lt;p&gt;autotools.nix的作用是对GNU Autotools进行一层抽象，具体内容如下（macOS下面要将gcc和binutils-unwrapped换成clang和clang.bintools.bintools_bin）：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;attrs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;kd&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;defaultAttrs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;bash&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;/bin/bash&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;args&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./builder.sh&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;buildInputs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gnutar&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gzip&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gnumake&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gcc&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;binutils-unwrapped&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;coreutils&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gawk&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gnused&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gnugrep&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;system&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;builtins&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;currentSystem&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+  &lt;span class=&quot;kn&quot;&gt;in&lt;/span&gt;
+  &lt;span class=&quot;kr&quot;&gt;derivation&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;defaultAttrs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;//&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;attrs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;然后是builder.sh，这个是用来执行软件包的编译操作，具体内容如下：&lt;/p&gt;
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-e&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;unset &lt;/span&gt;PATH
+&lt;span class=&quot;k&quot;&gt;for &lt;/span&gt;p &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$buildInputs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do
+    &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;PATH&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$p&lt;/span&gt;/bin&lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;PATH&lt;/span&gt;:+:&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$PATH&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;done
+&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;tar&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-xf&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$src&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;for &lt;/span&gt;d &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do
+    if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-d&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$d&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;then
+        &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cd&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$d&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+	&lt;span class=&quot;nb&quot;&gt;break
+    &lt;/span&gt;&lt;span class=&quot;k&quot;&gt;fi
+done&lt;/span&gt;
+./configure &lt;span class=&quot;nt&quot;&gt;--prefix&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$out&lt;/span&gt;
+make
+make &lt;span class=&quot;nb&quot;&gt;install&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;最后是default.nix，定义一个derivation。内容如下：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;let&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;nixpkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{};&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;mkDerivation&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./autotools.nix&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;mkDerivation&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;name&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;hello&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;src&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;fetchurl&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;url&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;https://mirror.sjtu.edu.cn/gnu/hello/hello-2.10.tar.gz&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;sha256&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;0ssi1wpaf7plaswqqjwigppsg5fyh99vdlb9kzl7c9lng89ndq1i&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;然后使用nix-build命令构建它，当构建完成之后，就可以使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;./result/bin/hello&lt;/code&gt;运行它了，之后你就可以把它放到你的Nix软件包仓库里。后续可以通过搭建ci服务器来自动构建它并建立镜像服务器，使得其他用户可以快速使用你打包的软件包。&lt;/p&gt;
+
+&lt;h1 id=&quot;结束the-end&quot;&gt;结束，The end&lt;/h1&gt;
+&lt;p&gt;用Nix构建一个LFS系统除了要打包软件包之外，还需要编写系统模块。这个等我构建完基础系统之后给大家讲述如何用Nix编写系统模块。下次会讲述用Nix创建自己的软件仓库，另外如果有会Nix的大佬可以加入到LFS的构建中，地址在&lt;a href=&quot;https://github.com/c4dr01d/nix-lfs&quot;&gt;这里&lt;/a&gt;，欢迎各位大佬加入。&lt;/p&gt;</content><author><name></name></author><category term="编程" /><category term="Linux" /><category term="包管理器" /><summary type="html">前言 前面讲了如何使用Nix创建一个Blog，作为讲如何用Nix打包的过渡。最近这段时间我在用Nix打包Linux From Scratch以及使用Nix仿照NixOS的操作系统模块来编写属于我自己的Linux发行版配置，借着这个契机，在这讲一下如何使用Nix打包。</summary></entry><entry><title type="html">使用Nix创建个人博客</title><link href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/11/create-personal-blog-using-nix.html" rel="alternate" type="text/html" title="使用Nix创建个人博客" /><published>2021-02-11T13:12:42+08:00</published><updated>2021-02-11T13:12:42+08:00</updated><id>https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/11/create-personal-blog-using-nix</id><content type="html" xml:base="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/11/create-personal-blog-using-nix.html">&lt;h1 id=&quot;前言&quot;&gt;前言&lt;/h1&gt;
+&lt;p&gt;在讲打包之前，我先讲下我的博客是如何创建与部署的，做为前面讲创建开发环境的延伸。&lt;/p&gt;
+
+&lt;h2 id=&quot;环境搭建&quot;&gt;环境搭建&lt;/h2&gt;
+&lt;p&gt;我的博客使用Jekyll作为引擎来搭建的，Jekyll使用Ruby编写，Nix对Ruby的开发支持也很好，可以做到只要在机器上能安装Nix和Git，就能够在不污染本地全局环境下编写博客。&lt;/p&gt;
+
+&lt;p&gt;在搭建博客时，需要创建一个目录来存放我们的博客源码，之后我们可以调用nix-shell来创建初始环境，具体命令为：&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nix-shell -p jekyll --run &quot;jekyll new .&quot;&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;建立了初始环境后，需要改动一下Gemfile，这里要把关于JRuby和Win32的gem全删了，另外把jekyll gem换成github-pages gem。然后用bundle生成Gemfile.lock，具体命令为：&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nix-shell -p bundler --run &quot;bundler package --no-install --path vendor&quot;&lt;/code&gt;。生成Gemfile.lock后，还需要生成gemset.nix，这里需要使用bundix工具，bundix通过生成的Gemfile.lock将gems转化成nix来使得整个环境下面的Ruby依赖完全用Nix来管理。生成gemset.nix的具体命令为：&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;$(nix-build '&amp;lt;nixpkgs&amp;gt;' -A bundix)/bin/bundix&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;在生成了Gemfile.lock和gemset.nix之后，需要删除.bundle、vendor和result，这些是在初始化环境的时候所构建出来的，对于整个Blog的写作环境来说无关紧要。之后就可以创建shell.nix来对写作环境做配置，使写作环境Nix化：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;nixpkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{};&lt;/span&gt;
+&lt;span class=&quot;kd&quot;&gt;let&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;jekyllEnv&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;bundlerEnv&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;rec&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;name&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;jekyll&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gemfile&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./Gemfile&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;lockfile&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./Gemfile.lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gemset&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./gemset.nix&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;in&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;mkShell&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;buildInputs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;jekyllEnv&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;这里使用了bundlerEnv，在Nix中定义一个bundle环境。在对博客配置做好更改之后，可以使用命令：&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nix-shell --run &quot;jekyll serve --watch&quot;&lt;/code&gt;来启动本地预览。&lt;/p&gt;
+
+&lt;p&gt;在创建新文章这块，我使用了rake工具，使得创建文章半自动化，只需要输入博客文章的URL、标题、分类和标签后，就会自动生成一篇白板文章，写完后就可以发布。&lt;/p&gt;
+
+&lt;p&gt;我的Rakefile：&lt;/p&gt;
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;task&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;:default&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;:new&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;require&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'fileutils'&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;desc&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;Create new post&quot;&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;task&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;:new&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt;
+  &lt;span class=&quot;nb&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;[-] Please input new post URL: &quot;&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@url&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;STDIN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;gets&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;chomp&lt;/span&gt;
+  &lt;span class=&quot;nb&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;[-] Please input post title: &quot;&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@name&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;STDIN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;gets&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;chomp&lt;/span&gt;
+  &lt;span class=&quot;nb&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;[-] Please input the categories: &quot;&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@categories&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;STDIN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;gets&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;chomp&lt;/span&gt;
+  &lt;span class=&quot;nb&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;[-] Please input the tags: &quot;&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@tags&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;STDIN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;gets&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;chomp&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@slug&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@url&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@slug&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;vi&quot;&gt;@slug&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;downcase&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;strip&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;gsub&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;' '&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'-'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@date&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;Time&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;now&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;strftime&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;%F&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@post&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;_posts/&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@date&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@slug&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;.md&quot;&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;File&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;exist?&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@post&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;nb&quot;&gt;abort&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;[!] Create new post failed, because the &lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@post&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt; is exists.&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+  &lt;span class=&quot;no&quot;&gt;FileUtils&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;touch&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@post&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;nb&quot;&gt;open&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@post&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'a'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;---&quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;layout: post&quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;title: &lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@name&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;date: &lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;Time&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;now&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;categories: &lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@categories&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;tags: &lt;/span&gt;&lt;span class=&quot;si&quot;&gt;#{&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@tags&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;puts&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;---&quot;&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;构建部署与备份&quot;&gt;构建、部署与备份&lt;/h2&gt;
+&lt;p&gt;构建上，依靠前面的shell.nix，在写好文章之后可以用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nix-shell --run &quot;jekyll build&quot;&lt;/code&gt;来构建。&lt;/p&gt;
+
+&lt;p&gt;部署上面，我在我的GitHub上面开了一个仓库，总共两个分支，master分支是用来存放构建好的页面，也就是用过引擎编译好的网页，source分支用来存放源码。&lt;/p&gt;
+
+&lt;p&gt;备份上我选择了跟构建好的页面一起放进一个仓库，存放方式即前面提到的双分支存储。在source分支里面我用了git worktree将master分支转到Jekyll生成页面那个目录，当构建完毕之后，我可以直接进去通过git手动提交更新，后续会转成用rake来自动化这个过程，目前还是半自动部署先凑合。&lt;/p&gt;
+
+&lt;h2 id=&quot;环境维护&quot;&gt;环境维护&lt;/h2&gt;
+&lt;p&gt;关于环境的维护，只需要删除Gemfile.lock和gemset.nix再按照上面的方法重新生成就可以了。&lt;/p&gt;</content><author><name></name></author><category term="编程" /><category term="包管理器" /><category term="博客" /><summary type="html">前言 在讲打包之前，我先讲下我的博客是如何创建与部署的，做为前面讲创建开发环境的延伸。</summary></entry><entry><title type="html">使用Nix创建开发环境</title><link href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/10/create-development-environment-using-nix.html" rel="alternate" type="text/html" title="使用Nix创建开发环境" /><published>2021-02-10T12:34:29+08:00</published><updated>2021-02-10T12:34:29+08:00</updated><id>https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/10/create-development-environment-using-nix</id><content type="html" xml:base="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/10/create-development-environment-using-nix.html">&lt;h1 id=&quot;前言&quot;&gt;前言&lt;/h1&gt;
+&lt;p&gt;前面讲了Nix语言的语法之后，现在来看一下如何创建一个开发环境&lt;/p&gt;
+
+&lt;h2 id=&quot;nix-shell&quot;&gt;nix-shell&lt;/h2&gt;
+&lt;p&gt;用Nix创建一个开发环境，就需要用到nix-shell这个工具。nix-shell会通过传入的软件包或者开发环境配置来创建一个开发环境，如果指定&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;--pure&lt;/code&gt;参数，那么nix-shell会创建一个容器环境，你在这个容器环境下面的改动不会影响到真实环境。&lt;/p&gt;
+
+&lt;h2 id=&quot;ad-hoc环境&quot;&gt;Ad-hoc环境&lt;/h2&gt;
+&lt;p&gt;ad-hoc环境主要是用来包装一些脚本，例如：&lt;/p&gt;
+&lt;div class=&quot;language-python highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;#!/usr/bin/env nix-shell
+#!nix-shell --pure -i python -p &quot;python38.withPackages (ps: [ ps.django ])&quot;
+&lt;/span&gt;&lt;span class=&quot;kn&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;django&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;print&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;django&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;ad-hoc环境的好处是可以快速创建一个shell环境来做一些小测试，用完之后不污染真实环境。&lt;/p&gt;
+
+&lt;h2 id=&quot;可重现的环境&quot;&gt;可重现的环境&lt;/h2&gt;
+&lt;p&gt;创建一个可重现的环境，需要在你的工程目录下面创建一个名为shell.nix的Nix脚本。默认在执行nix-shell时会优先检测shell.nix，如果没有就会检测default.nix。&lt;/p&gt;
+
+&lt;p&gt;例如要创建一个C/C++的开发环境，需要在shell.nix里面加入如下内容：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;nixpkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{};&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;mkShell&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;buildInputs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;binutils&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gcc&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gnumake&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gdb&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;然后在这个文件夹下面执行nix-shell，Nix会自动下载依赖，然后看到提示符为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;[nix-shell:WORKDIR]$ &lt;/code&gt;时，你已经进入了开发环境中了。退出开发环境，只需要&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;exit&lt;/code&gt;即可。&lt;/p&gt;
+
+&lt;p&gt;如果需要环境可重现，那么需要对shell.nix进行一些改动：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kr&quot;&gt;fetchTarball&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;https://github.com/NixOS/nixpkgs/archive/COMMIT_HASH.tar.gz&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{}&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;指定COMMIT_HASH之后，在执行nix-shell时，Nix会从GitHub下载对应版本的nixpkgs，下载完之后，会用这里面的包定义根据shell.nix里面的组件来创建开发环境。&lt;/p&gt;
+
+&lt;p&gt;一般nix-shell创建完开发环境后，默认行为就是进入开发环境的shell，如果在下载完开发环境的组件之后需要对开发环境进行后续配置，可以指定shellHook变量。该变量是一个类型为lines的变量，可以在该变量中存储多行内容。我们可以在这个变量里面写入命令，在下载完开发环境组件之后，Nix会执行该变量里面所写的命令，来对开发环境做后续配置。例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kr&quot;&gt;fetchTarball&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;https://github.com/NixOS/nixpkgs/archive/COMMIT_HASH.tar.gz&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{}&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;mkShell&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;buildInputs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;shellHook&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;''&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;    echo hello&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;  ''&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;如果需要在环境中指定环境变量，只需要在shell.nix的mkShell里面对环境变量赋值即可。例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;nixpkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{};&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;mkShell&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;buildInputs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;FOO&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;foo&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;BAR&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;bar&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;在创建环境的时候，Nix会自动创建环境变量并对其赋值。&lt;/p&gt;
+
+&lt;p&gt;在创建工程时，一般在工程的根目录下面存放两个文件，一个就是shell.nix，另一个是default.nix。default.nix一般用来将工程打包成应用，而shell.nix是开发环境的配置。在使用nix-build执行default.nix之后，会在工程目录下面生成一个result链接，链接里面存放的是已经打包好的应用。&lt;/p&gt;
+
+&lt;p&gt;可能有的人说，如果要创建一个可重现的开发环境，我还得到GitHub去翻commit hash。为了解决这个问题，Nix提供了niv这个工具。下面通过一个工程实例，来讲述niv工具的使用。&lt;/p&gt;
+
+&lt;h2 id=&quot;工程实例&quot;&gt;工程实例&lt;/h2&gt;
+&lt;p&gt;创建一个工程目录，然后在该目录下面执行&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;niv init&lt;/code&gt;。执行完之后，工程的目录结构如下：&lt;/p&gt;
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;.
+└── nix
+    ├── sources.json
+    └── sources.nix
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;sources.json和sources.nix是niv添加了诸如nixpkgs软件源后所生成的，我们可以通过这个来创建开发环境和生产环境。&lt;/p&gt;
+
+&lt;p&gt;在初始化完工程根文件夹之后，就可以创建shell.nix和default.nix了，这里先给出shell.nix的内容：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;sources&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./nix/sources.nix&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt;
+&lt;span class=&quot;kd&quot;&gt;let&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;sources&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;nixpkgs&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;in&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;mkShell&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;buildInputs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;binutils&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gcc&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gnumake&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;gdb&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;配置完之后使用nix-shell创建开发环境。&lt;/p&gt;
+
+&lt;p&gt;在开发环境中完成对工程的编写后，就需要开始对工程进行构建了。在编写default.nix之前，先要编写一个builder。在本例中使用的是shell脚本来编写builder，builder中的内容如下：&lt;/p&gt;
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-e&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;unset &lt;/span&gt;PATH
+&lt;span class=&quot;k&quot;&gt;for &lt;/span&gt;p &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$buildInputs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do
+    &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;PATH&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$p&lt;/span&gt;/bin&lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;PATH&lt;/span&gt;:+:&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$PATH&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;done
+&lt;/span&gt;gcc &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$out&lt;/span&gt;/&lt;span class=&quot;nv&quot;&gt;$name&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$src&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;在default.nix中添加如下内容：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;sources&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./nix/sources.nix&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt;
+&lt;span class=&quot;kd&quot;&gt;let&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;sources&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;nixpkgs&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;in&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;stdenv&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;mkDerivation&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;name&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;hello&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;bash&lt;/span&gt;&lt;span class=&quot;si&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;/bin/bash&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;args&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./builder.sh&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;buildInputs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kn&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;binutils&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;gcc&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;src&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;sx&quot;&gt;./hello.c&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;system&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;builtins&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;currentSystem&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;之后运行nix-build命令构建，构建完毕之后会在工程根目录下面生成一个result的链接，里面就是构建好的可执行程序，使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;./result/hello&lt;/code&gt;就可以执行。&lt;/p&gt;
+
+&lt;p&gt;基本上所有的开发环境都是用这种工作流来创建的，另外还有一个工作流是使用的nix flakes，这个后面再讲述。后面会通过一个实际的项目来跟大家讲述如何用Nix打包，毕竟Nix本身就是一个包管理器嘛，如何用Nix打包和定制一个包才是至关重要的。&lt;/p&gt;</content><author><name></name></author><category term="编程" /><category term="包管理器" /><summary type="html">前言 前面讲了Nix语言的语法之后，现在来看一下如何创建一个开发环境</summary></entry><entry><title type="html">Nix语言语法</title><link href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/09/syntax-for-nix-language.html" rel="alternate" type="text/html" title="Nix语言语法" /><published>2021-02-09T09:01:53+08:00</published><updated>2021-02-09T09:01:53+08:00</updated><id>https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/09/syntax-for-nix-language</id><content type="html" xml:base="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/09/syntax-for-nix-language.html">&lt;h1 id=&quot;前言&quot;&gt;前言&lt;/h1&gt;
+&lt;p&gt;在讲开发环境之前，先要讲下Nix语言。Nix语言是Nix的核心，它用来描述软件包的打包过程、环境的配置。Nix是纯函数式语言，具有惰性求值等特性。纯（Purity）代表在程序执行过程中没有任何的副作用，例如给变量赋值。因为我们的开发环境需要用Nix写开发环境的配置，所以在这里先讲一下语法。&lt;/p&gt;
+
+&lt;h2 id=&quot;语句结束符&quot;&gt;语句结束符&lt;/h2&gt;
+&lt;p&gt;Nix中表示一行语句结束使用分号。在集合中，分号用于分隔集合元素。&lt;/p&gt;
+
+&lt;h2 id=&quot;类型&quot;&gt;类型&lt;/h2&gt;
+&lt;p&gt;在Nix中，有十个基本类型：字符串、整型数、浮点数、路径、URI、布尔值、Null、列表、集合、函数。其他类型可以自己扩展。&lt;/p&gt;
+
+&lt;h2 id=&quot;函数&quot;&gt;函数&lt;/h2&gt;
+&lt;p&gt;在Nix中，定义一个函数使用这种形式：&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fun_name = argument: body&lt;/code&gt;。当没有制定fun_name时，该函数是一个匿名函数。例如定义一个求某个数平方的函数：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;square&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;x&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;当函数的参数是集合时，Nix会自动解构，例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;concat_a_and_b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;set&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;set&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;set&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;concat_a_and_b&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;hello&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;world&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;hello world&quot;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;需要给函数指定默认参数，可以用问号指定，例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;5&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;如果需要在函数中使用变长参数的话，有两种方式。第一种是使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;...&lt;/code&gt;，第二种是使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;args @ { argument }&lt;/code&gt;。例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;5&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;unexpected&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;argument&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;'&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;c&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;'&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;5&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;args&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;@&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;c&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;add&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;5&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;17&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;运算符&quot;&gt;运算符&lt;/h2&gt;
+&lt;p&gt;在Nix中，有20个运算符，除了常用的加减乘除以及逻辑运算符之外，有几个特殊的运算符。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;.&lt;/code&gt;：选择用集合表示的属性路径
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;?&lt;/code&gt;：判断属性路径中是否有此属性
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;++&lt;/code&gt;：列表的链接
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;//&lt;/code&gt;：返回由两个属性所组成的集合
+&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;-&amp;gt;&lt;/code&gt;：等价于&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;!e1 || e2&lt;/code&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;模块&quot;&gt;模块&lt;/h2&gt;
+&lt;p&gt;Nix支持模块，导入一个模块可以使用import语句。例如：&lt;/p&gt;
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;# Import module
+import &amp;lt;nixpkgs&amp;gt; {};
+# Import other nix source file
+import ./hello.nix;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;with语句&quot;&gt;with语句&lt;/h2&gt;
+&lt;p&gt;with语句用于简化程序，例如：&lt;/p&gt;
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;# Not use with statement
+{ lib, ... }: {
+  options = {
+    networking.hosts = lib.mkOption {
+      type = lib.types.attrsOf ( lib.types.listOf lib.types.str );
+      default = {};
+    };
+  };
+  ...
+}
+# Use with statement
+{ lib, ... }:
+with lib;
+{
+  options = {
+    networking.hosts = mkOption {
+      type = with types; attrsOf ( listOf str );
+      default = {};
+    };
+  };
+  ...
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;let--in语句&quot;&gt;let .. in语句&lt;/h2&gt;
+&lt;p&gt;let .. in语句用于定义一个局部变量然后应用于in后面的程序块，例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;let&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;b&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;inherit语句&quot;&gt;inherit语句&lt;/h2&gt;
+&lt;p&gt;inherit语句是从其他语法作用域中复制变量，例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;buildPythonPackage&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;rec&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;pname&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;hello&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;version&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;1.0&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;src&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;fetchPypi&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kn&quot;&gt;inherit&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pname&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;version&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;sha256&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;...&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;rec语句&quot;&gt;rec语句&lt;/h2&gt;
+&lt;p&gt;rec语句用于将表达式做成集合，例如：&lt;/p&gt;
+&lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kr&quot;&gt;rec&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;y&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;100&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;y&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;123&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;x&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;23&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;以上是Nix的基本语法，后面会讲述如何使用Nix来创建一个开发环境。&lt;/p&gt;</content><author><name></name></author><category term="编程" /><category term="包管理器" /><summary type="html">前言 在讲开发环境之前，先要讲下Nix语言。Nix语言是Nix的核心，它用来描述软件包的打包过程、环境的配置。Nix是纯函数式语言，具有惰性求值等特性。纯（Purity）代表在程序执行过程中没有任何的副作用，例如给变量赋值。因为我们的开发环境需要用Nix写开发环境的配置，所以在这里先讲一下语法。</summary></entry><entry><title type="html">函数式包管理器：Nix</title><link href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/08/functional-package-manager-nix.html" rel="alternate" type="text/html" title="函数式包管理器：Nix" /><published>2021-02-08T12:50:09+08:00</published><updated>2021-02-08T12:50:09+08:00</updated><id>https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/08/functional-package-manager-nix</id><content type="html" xml:base="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/08/functional-package-manager-nix.html">&lt;h1 id=&quot;前言&quot;&gt;前言&lt;/h1&gt;
+&lt;p&gt;平时在写代码的时候，可能需要配置一系列的开发环境，有时还会遇到诸如开发环境所使用的软件版本与生产环境所使用的软件版本不同的情况，以至于还要将生产环境的软件版本倒回到开发环境所使用的软件版本，甚至可能还会出现安全问题。针对这个问题，有人专门发布了一篇论文，阐述了一种新的开发环境与软件包的管理方式，既能解决在同一个系统上的软件版本问题，也能兼顾安全问题。这就是Nix，一个使用函数式编程范式来描述软件包的打包、管理，甚至开发环境配置，容器配置，操作系统配置的软件包管理器。关于Nix能做些什么，它的&lt;a href=&quot;https://nixos.org&quot;&gt;官网&lt;/a&gt;有具体的描述。那么话不多说，来看如何安装（入坑）Nix吧。&lt;/p&gt;
+
+&lt;h2 id=&quot;安装&quot;&gt;安装&lt;/h2&gt;
+&lt;p&gt;在Linux下面，你可以使用官网的&lt;a href=&quot;https://nixos.org/nix/install&quot;&gt;脚本&lt;/a&gt;来安装Nix到你的Linux发行版上面。如果你想使用Nix来管理你的系统的话，你可以在&lt;a href=&quot;https://nixos.org/download.html&quot;&gt;这里&lt;/a&gt;下载NixOS的镜像，然后安装到你的电脑里面。在macOS下面安装Nix跟Linux是一样的，只不过需要一些配置，在Nix的&lt;a href=&quot;https://nixos.org/manual/nix/stable/#ch-installing-binary&quot;&gt;文档&lt;/a&gt;中较为详细的介绍了安装步骤，这里讲一下在文档中没有说到的地方，这里假设都是使用多用户安装模式安装Nix。&lt;/p&gt;
+
+&lt;p&gt;第一个是macOS下面的/nix挂载点问题，Nix将所有的包，还有环境配置都存放在/nix这里，而由于macOS的安全策略，使得用户不能在/下面做改动，于是需要手动创建挂载点。在macOS中，管理挂在点需要在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/etc/synthetic.conf&lt;/code&gt;添加挂载项，然后创建一个子卷，修改&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/etc/fstab&lt;/code&gt;使得/nix开机自动挂载，之后应用设置。具体操作过程如下：&lt;/p&gt;
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;vim /etc/synthetic.conf &lt;span class=&quot;c&quot;&gt;# 添加`nix`到该文件中&lt;/span&gt;
+diskutil list &lt;span class=&quot;c&quot;&gt;# 查看卷标&lt;/span&gt;
+/System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util &lt;span class=&quot;nt&quot;&gt;-B&lt;/span&gt; &lt;span class=&quot;c&quot;&gt;# macOS Catalina以及老版本macOS运行此命令应用配置&lt;/span&gt;
+/System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util &lt;span class=&quot;nt&quot;&gt;-t&lt;/span&gt; &lt;span class=&quot;c&quot;&gt;# macOS Big Sur以及新版本macOS运行此命令应用配置&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;diskutil apfs addVolume diskX APFS &lt;span class=&quot;s1&quot;&gt;'NixStore'&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-mountpoint&lt;/span&gt; /nix &lt;span class=&quot;c&quot;&gt;# 创建挂载点，diskX为从`diskutil list`命令中看到的卷标&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;vifs &lt;span class=&quot;c&quot;&gt;# 添加`LABEL=NixStore /nix apfs rw,nobrowse`，使得/nix开机自动挂载&lt;/span&gt;
+./install-nix.sh &lt;span class=&quot;nt&quot;&gt;--darwin-use-unencryped-nix-store-volume&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--daemon&lt;/span&gt; &lt;span class=&quot;c&quot;&gt;# 执行安装&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;第二个是镜像源的配置，修改镜像源需要修改&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/etc/nix/nix.conf&lt;/code&gt;文件，如果是用的NixOS或者nix-darwin，可以修改系统配置中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nix.binaryCaches&lt;/code&gt;来更改：&lt;/p&gt;
+&lt;ol&gt;
+  &lt;li&gt;使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/etc/nix/nix.conf&lt;/code&gt;修改：
+    &lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;substituters &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; MIRROR1 MIRROR2 MIRROR3
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+    &lt;p&gt;修改完之后，需要重启nix-daemon使得改动生效&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;在系统配置里修改：
+    &lt;div class=&quot;language-nix highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;config&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;lib&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;pkgs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}:&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+  &lt;span class=&quot;nv&quot;&gt;nix&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;binaryCaches&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;lib&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;mkForce&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;
+ &lt;span class=&quot;s2&quot;&gt;&quot;MIRROR1&quot;&lt;/span&gt;
+ &lt;span class=&quot;s2&quot;&gt;&quot;MIRROR2&quot;&lt;/span&gt;
+ &lt;span class=&quot;s2&quot;&gt;&quot;MIRROR3&quot;&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+    &lt;p&gt;修改完系统配置后，需要用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nixos-rebuild switch&lt;/code&gt;或者&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;darwin-rebuild switch&lt;/code&gt;使得改动生效&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;第三个是nix-daemon，Linux的nix-daemon使用systemd管理，重启只需要&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;systemctl restart nix-daemon&lt;/code&gt;就可以了。macOS的nix-daemon使用launchctl管理，需要先卸载nix-daemon的配置项，然后再加载，配置项位于&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/Library/LaunchDaemons/org.nixos.nix-daemon.plist&lt;/code&gt;，都需要在root权限下执行。&lt;/p&gt;
+
+&lt;p&gt;安装完毕之后，退出终端再重新打开一个终端，可以使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nix-shell -p nix-info --run &quot;nix-info -m&quot;&lt;/code&gt;命令查看系统基本信息，同时也可以检查Nix的运行有没有问题。&lt;/p&gt;
+
+&lt;p&gt;到这基本上就完成了Nix的安装，关于Nix的使用，后续会专门发文章来讲述，诸如开发环境配置，系统配置等等。敬请期待。&lt;/p&gt;</content><author><name></name></author><category term="编程" /><category term="包管理器" /><summary type="html">前言 平时在写代码的时候，可能需要配置一系列的开发环境，有时还会遇到诸如开发环境所使用的软件版本与生产环境所使用的软件版本不同的情况，以至于还要将生产环境的软件版本倒回到开发环境所使用的软件版本，甚至可能还会出现安全问题。针对这个问题，有人专门发布了一篇论文，阐述了一种新的开发环境与软件包的管理方式，既能解决在同一个系统上的软件版本问题，也能兼顾安全问题。这就是Nix，一个使用函数式编程范式来描述软件包的打包、管理，甚至开发环境配置，容器配置，操作系统配置的软件包管理器。关于Nix能做些什么，它的官网有具体的描述。那么话不多说，来看如何安装（入坑）Nix吧。</summary></entry></feed>

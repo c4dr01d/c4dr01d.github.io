@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; img-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; media-src 'self'; object-src 'self'; child-src 'self'; form-action 'none'; base-uri 'self'" />
+<meta http-equiv="X-XSS-Protection"  content="1;mode=block" always>
+<meta http-equiv="Referrer-Policy" content="no-referrer, strict-origin-when-cross-origin"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>使用Nix创建开发环境</title><!-- Begin Jekyll SEO tag v2.7.1 -->
+<meta name="generator" content="Jekyll v4.2.0" />
+<meta property="og:title" content="使用Nix创建开发环境" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言 前面讲了Nix语言的语法之后，现在来看一下如何创建一个开发环境" />
+<meta property="og:description" content="前言 前面讲了Nix语言的语法之后，现在来看一下如何创建一个开发环境" />
+<link rel="canonical" href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/10/create-development-environment-using-nix.html" />
+<meta property="og:url" content="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/10/create-development-environment-using-nix.html" />
+<meta property="og:site_name" content="c4droid’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-10T12:34:29+08:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="使用Nix创建开发环境" />
+<script type="application/ld+json">
+{"description":"前言 前面讲了Nix语言的语法之后，现在来看一下如何创建一个开发环境","headline":"使用Nix创建开发环境","dateModified":"2021-02-10T12:34:29+08:00","datePublished":"2021-02-10T12:34:29+08:00","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/10/create-development-environment-using-nix.html"},"url":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/10/create-development-environment-using-nix.html","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" type="text/css" href="/assets/main-hacker.css"></head>
+<body>
+    <div class="container"><header>
+  <div class="menu">
+    <ul><li><a href="/">c4droid&#39;s Blog</a></li><li><a href="/about/">About</a></li></ul>
+  </div>
+</header>
+<main>
+      <h1 id="前言">前言</h1>
+<p>前面讲了Nix语言的语法之后，现在来看一下如何创建一个开发环境</p>
+
+<h2 id="nix-shell">nix-shell</h2>
+<p>用Nix创建一个开发环境，就需要用到nix-shell这个工具。nix-shell会通过传入的软件包或者开发环境配置来创建一个开发环境，如果指定<code class="language-plaintext highlighter-rouge">--pure</code>参数，那么nix-shell会创建一个容器环境，你在这个容器环境下面的改动不会影响到真实环境。</p>
+
+<h2 id="ad-hoc环境">Ad-hoc环境</h2>
+<p>ad-hoc环境主要是用来包装一些脚本，例如：</p>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/env nix-shell
+#!nix-shell --pure -i python -p "python38.withPackages (ps: [ ps.django ])"
+</span><span class="kn">import</span> <span class="nn">django</span>
+<span class="k">print</span><span class="p">(</span><span class="n">django</span><span class="p">)</span>
+</code></pre></div></div>
+<p>ad-hoc环境的好处是可以快速创建一个shell环境来做一些小测试，用完之后不污染真实环境。</p>
+
+<h2 id="可重现的环境">可重现的环境</h2>
+<p>创建一个可重现的环境，需要在你的工程目录下面创建一个名为shell.nix的Nix脚本。默认在执行nix-shell时会优先检测shell.nix，如果没有就会检测default.nix。</p>
+
+<p>例如要创建一个C/C++的开发环境，需要在shell.nix里面加入如下内容：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">with</span> <span class="kr">import</span> <span class="o">&lt;</span><span class="nv">nixpkgs</span><span class="o">&gt;</span> <span class="p">{};</span>
+<span class="nv">mkShell</span> <span class="p">{</span>
+  <span class="nv">buildInputs</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="nv">binutils</span>
+    <span class="nv">gcc</span>
+    <span class="nv">gnumake</span>
+    <span class="nv">gdb</span>
+  <span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>然后在这个文件夹下面执行nix-shell，Nix会自动下载依赖，然后看到提示符为<code class="language-plaintext highlighter-rouge">[nix-shell:WORKDIR]$ </code>时，你已经进入了开发环境中了。退出开发环境，只需要<code class="language-plaintext highlighter-rouge">exit</code>即可。</p>
+
+<p>如果需要环境可重现，那么需要对shell.nix进行一些改动：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span> <span class="nv">pkgs</span> <span class="o">?</span> <span class="kr">import</span> <span class="p">(</span><span class="kr">fetchTarball</span> <span class="s2">"https://github.com/NixOS/nixpkgs/archive/COMMIT_HASH.tar.gz"</span><span class="p">)</span> <span class="p">{}</span> <span class="p">}:</span>
+<span class="kn">with</span> <span class="nv">pkgs</span><span class="p">;</span>
+<span class="o">...</span>
+</code></pre></div></div>
+<p>指定COMMIT_HASH之后，在执行nix-shell时，Nix会从GitHub下载对应版本的nixpkgs，下载完之后，会用这里面的包定义根据shell.nix里面的组件来创建开发环境。</p>
+
+<p>一般nix-shell创建完开发环境后，默认行为就是进入开发环境的shell，如果在下载完开发环境的组件之后需要对开发环境进行后续配置，可以指定shellHook变量。该变量是一个类型为lines的变量，可以在该变量中存储多行内容。我们可以在这个变量里面写入命令，在下载完开发环境组件之后，Nix会执行该变量里面所写的命令，来对开发环境做后续配置。例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span> <span class="nv">pkgs</span> <span class="o">?</span> <span class="kr">import</span> <span class="p">(</span><span class="kr">fetchTarball</span> <span class="s2">"https://github.com/NixOS/nixpkgs/archive/COMMIT_HASH.tar.gz"</span><span class="p">)</span> <span class="p">{}</span> <span class="p">}:</span>
+<span class="kn">with</span> <span class="nv">pkgs</span><span class="p">;</span>
+<span class="nv">mkShell</span> <span class="p">{</span>
+  <span class="nv">buildInputs</span> <span class="o">=</span> <span class="p">[</span> <span class="o">...</span> <span class="p">];</span>
+  <span class="nv">shellHook</span> <span class="o">=</span> <span class="s2">''</span><span class="err">
+</span><span class="s2">    echo hello</span><span class="err">
+</span><span class="s2">  ''</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>如果需要在环境中指定环境变量，只需要在shell.nix的mkShell里面对环境变量赋值即可。例如：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">with</span> <span class="kr">import</span> <span class="o">&lt;</span><span class="nv">nixpkgs</span><span class="o">&gt;</span> <span class="p">{};</span>
+<span class="nv">mkShell</span> <span class="p">{</span>
+  <span class="nv">buildInputs</span> <span class="o">=</span> <span class="p">[</span> <span class="o">...</span> <span class="p">];</span>
+  <span class="nv">FOO</span> <span class="o">=</span> <span class="s2">"foo"</span><span class="p">;</span>
+  <span class="nv">BAR</span> <span class="o">=</span> <span class="s2">"bar"</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>在创建环境的时候，Nix会自动创建环境变量并对其赋值。</p>
+
+<p>在创建工程时，一般在工程的根目录下面存放两个文件，一个就是shell.nix，另一个是default.nix。default.nix一般用来将工程打包成应用，而shell.nix是开发环境的配置。在使用nix-build执行default.nix之后，会在工程目录下面生成一个result链接，链接里面存放的是已经打包好的应用。</p>
+
+<p>可能有的人说，如果要创建一个可重现的开发环境，我还得到GitHub去翻commit hash。为了解决这个问题，Nix提供了niv这个工具。下面通过一个工程实例，来讲述niv工具的使用。</p>
+
+<h2 id="工程实例">工程实例</h2>
+<p>创建一个工程目录，然后在该目录下面执行<code class="language-plaintext highlighter-rouge">niv init</code>。执行完之后，工程的目录结构如下：</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>.
+└── nix
+    ├── sources.json
+    └── sources.nix
+</code></pre></div></div>
+<p>sources.json和sources.nix是niv添加了诸如nixpkgs软件源后所生成的，我们可以通过这个来创建开发环境和生产环境。</p>
+
+<p>在初始化完工程根文件夹之后，就可以创建shell.nix和default.nix了，这里先给出shell.nix的内容：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span> <span class="nv">sources</span> <span class="o">?</span> <span class="kr">import</span> <span class="sx">./nix/sources.nix</span> <span class="p">}:</span>
+<span class="kd">let</span>
+  <span class="nv">pkgs</span> <span class="o">=</span> <span class="kr">import</span> <span class="nv">sources</span><span class="o">.</span><span class="nv">nixpkgs</span> <span class="p">{</span> <span class="p">};</span>
+<span class="kn">in</span>
+<span class="nv">pkgs</span><span class="o">.</span><span class="nv">mkShell</span> <span class="p">{</span>
+  <span class="nv">buildInputs</span> <span class="o">=</span> <span class="kn">with</span> <span class="nv">pkgs</span><span class="p">;</span> <span class="p">[</span>
+    <span class="nv">binutils</span>
+    <span class="nv">gcc</span>
+    <span class="nv">gnumake</span>
+    <span class="nv">gdb</span>
+  <span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>配置完之后使用nix-shell创建开发环境。</p>
+
+<p>在开发环境中完成对工程的编写后，就需要开始对工程进行构建了。在编写default.nix之前，先要编写一个builder。在本例中使用的是shell脚本来编写builder，builder中的内容如下：</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">set</span> <span class="nt">-e</span>
+<span class="nb">unset </span>PATH
+<span class="k">for </span>p <span class="k">in</span> <span class="nv">$buildInputs</span><span class="p">;</span> <span class="k">do
+    </span><span class="nb">export </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$p</span>/bin<span class="k">${</span><span class="nv">PATH</span>:+:<span class="k">}</span><span class="nv">$PATH</span>
+<span class="k">done
+</span>gcc <span class="nt">-o</span> <span class="nv">$out</span>/<span class="nv">$name</span> <span class="nv">$src</span>
+</code></pre></div></div>
+
+<p>在default.nix中添加如下内容：</p>
+<div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span> <span class="nv">sources</span> <span class="o">?</span> <span class="kr">import</span> <span class="sx">./nix/sources.nix</span> <span class="p">}:</span>
+<span class="kd">let</span>
+  <span class="nv">pkgs</span> <span class="o">=</span> <span class="kr">import</span> <span class="nv">sources</span><span class="o">.</span><span class="nv">nixpkgs</span> <span class="p">{</span> <span class="p">};</span>
+<span class="kn">in</span>
+<span class="nv">pkgs</span><span class="o">.</span><span class="nv">stdenv</span><span class="o">.</span><span class="nv">mkDerivation</span> <span class="p">{</span>
+  <span class="nv">name</span> <span class="o">=</span> <span class="s2">"hello"</span><span class="p">;</span>
+  <span class="nv">builder</span> <span class="o">=</span> <span class="s2">"</span><span class="si">${</span><span class="nv">pkgs</span><span class="o">.</span><span class="nv">bash</span><span class="si">}</span><span class="s2">/bin/bash"</span><span class="p">;</span>
+  <span class="nv">args</span> <span class="o">=</span> <span class="p">[</span> <span class="sx">./builder.sh</span> <span class="p">];</span>
+  <span class="nv">buildInputs</span> <span class="o">=</span> <span class="kn">with</span> <span class="nv">pkgs</span><span class="p">;</span> <span class="p">[</span> <span class="nv">binutils</span> <span class="nv">gcc</span> <span class="p">];</span>
+  <span class="nv">src</span> <span class="o">=</span> <span class="sx">./hello.c</span><span class="p">;</span>
+  <span class="nv">system</span> <span class="o">=</span> <span class="kr">builtins</span><span class="o">.</span><span class="nv">currentSystem</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>之后运行nix-build命令构建，构建完毕之后会在工程根目录下面生成一个result的链接，里面就是构建好的可执行程序，使用<code class="language-plaintext highlighter-rouge">./result/hello</code>就可以执行。</p>
+
+<p>基本上所有的开发环境都是用这种工作流来创建的，另外还有一个工作流是使用的nix flakes，这个后面再讲述。后面会通过一个实际的项目来跟大家讲述如何用Nix打包，毕竟Nix本身就是一个包管理器嘛，如何用Nix打包和定制一个包才是至关重要的。</p>
+
+
+    </main><footer>
+  Powered by Jekyll and GNU Guix, designed by <a href="https://github.com/c4dr01d" target="_blank">c4droid</a>. Since 2021
+</footer>
+</div>
+  </body>
+</html>

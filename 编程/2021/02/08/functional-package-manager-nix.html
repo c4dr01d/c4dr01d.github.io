@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; img-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; media-src 'self'; object-src 'self'; child-src 'self'; form-action 'none'; base-uri 'self'" />
+<meta http-equiv="X-XSS-Protection"  content="1;mode=block" always>
+<meta http-equiv="Referrer-Policy" content="no-referrer, strict-origin-when-cross-origin"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>函数式包管理器：Nix</title><!-- Begin Jekyll SEO tag v2.7.1 -->
+<meta name="generator" content="Jekyll v4.2.0" />
+<meta property="og:title" content="函数式包管理器：Nix" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言 平时在写代码的时候，可能需要配置一系列的开发环境，有时还会遇到诸如开发环境所使用的软件版本与生产环境所使用的软件版本不同的情况，以至于还要将生产环境的软件版本倒回到开发环境所使用的软件版本，甚至可能还会出现安全问题。针对这个问题，有人专门发布了一篇论文，阐述了一种新的开发环境与软件包的管理方式，既能解决在同一个系统上的软件版本问题，也能兼顾安全问题。这就是Nix，一个使用函数式编程范式来描述软件包的打包、管理，甚至开发环境配置，容器配置，操作系统配置的软件包管理器。关于Nix能做些什么，它的官网有具体的描述。那么话不多说，来看如何安装（入坑）Nix吧。" />
+<meta property="og:description" content="前言 平时在写代码的时候，可能需要配置一系列的开发环境，有时还会遇到诸如开发环境所使用的软件版本与生产环境所使用的软件版本不同的情况，以至于还要将生产环境的软件版本倒回到开发环境所使用的软件版本，甚至可能还会出现安全问题。针对这个问题，有人专门发布了一篇论文，阐述了一种新的开发环境与软件包的管理方式，既能解决在同一个系统上的软件版本问题，也能兼顾安全问题。这就是Nix，一个使用函数式编程范式来描述软件包的打包、管理，甚至开发环境配置，容器配置，操作系统配置的软件包管理器。关于Nix能做些什么，它的官网有具体的描述。那么话不多说，来看如何安装（入坑）Nix吧。" />
+<link rel="canonical" href="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/08/functional-package-manager-nix.html" />
+<meta property="og:url" content="https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/08/functional-package-manager-nix.html" />
+<meta property="og:site_name" content="c4droid’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-08T12:50:09+08:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="函数式包管理器：Nix" />
+<script type="application/ld+json">
+{"description":"前言 平时在写代码的时候，可能需要配置一系列的开发环境，有时还会遇到诸如开发环境所使用的软件版本与生产环境所使用的软件版本不同的情况，以至于还要将生产环境的软件版本倒回到开发环境所使用的软件版本，甚至可能还会出现安全问题。针对这个问题，有人专门发布了一篇论文，阐述了一种新的开发环境与软件包的管理方式，既能解决在同一个系统上的软件版本问题，也能兼顾安全问题。这就是Nix，一个使用函数式编程范式来描述软件包的打包、管理，甚至开发环境配置，容器配置，操作系统配置的软件包管理器。关于Nix能做些什么，它的官网有具体的描述。那么话不多说，来看如何安装（入坑）Nix吧。","headline":"函数式包管理器：Nix","dateModified":"2021-02-08T12:50:09+08:00","datePublished":"2021-02-08T12:50:09+08:00","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/08/functional-package-manager-nix.html"},"url":"https://c4dr01d.github.io/%E7%BC%96%E7%A8%8B/2021/02/08/functional-package-manager-nix.html","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" type="text/css" href="/assets/main-hacker.css"></head>
+<body>
+    <div class="container"><header>
+  <div class="menu">
+    <ul><li><a href="/">c4droid&#39;s Blog</a></li><li><a href="/about/">About</a></li></ul>
+  </div>
+</header>
+<main>
+      <h1 id="前言">前言</h1>
+<p>平时在写代码的时候，可能需要配置一系列的开发环境，有时还会遇到诸如开发环境所使用的软件版本与生产环境所使用的软件版本不同的情况，以至于还要将生产环境的软件版本倒回到开发环境所使用的软件版本，甚至可能还会出现安全问题。针对这个问题，有人专门发布了一篇论文，阐述了一种新的开发环境与软件包的管理方式，既能解决在同一个系统上的软件版本问题，也能兼顾安全问题。这就是Nix，一个使用函数式编程范式来描述软件包的打包、管理，甚至开发环境配置，容器配置，操作系统配置的软件包管理器。关于Nix能做些什么，它的<a href="https://nixos.org">官网</a>有具体的描述。那么话不多说，来看如何安装（入坑）Nix吧。</p>
+
+<h2 id="安装">安装</h2>
+<p>在Linux下面，你可以使用官网的<a href="https://nixos.org/nix/install">脚本</a>来安装Nix到你的Linux发行版上面。如果你想使用Nix来管理你的系统的话，你可以在<a href="https://nixos.org/download.html">这里</a>下载NixOS的镜像，然后安装到你的电脑里面。在macOS下面安装Nix跟Linux是一样的，只不过需要一些配置，在Nix的<a href="https://nixos.org/manual/nix/stable/#ch-installing-binary">文档</a>中较为详细的介绍了安装步骤，这里讲一下在文档中没有说到的地方，这里假设都是使用多用户安装模式安装Nix。</p>
+
+<p>第一个是macOS下面的/nix挂载点问题，Nix将所有的包，还有环境配置都存放在/nix这里，而由于macOS的安全策略，使得用户不能在/下面做改动，于是需要手动创建挂载点。在macOS中，管理挂在点需要在<code class="language-plaintext highlighter-rouge">/etc/synthetic.conf</code>添加挂载项，然后创建一个子卷，修改<code class="language-plaintext highlighter-rouge">/etc/fstab</code>使得/nix开机自动挂载，之后应用设置。具体操作过程如下：</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>vim /etc/synthetic.conf <span class="c"># 添加`nix`到该文件中</span>
+diskutil list <span class="c"># 查看卷标</span>
+/System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util <span class="nt">-B</span> <span class="c"># macOS Catalina以及老版本macOS运行此命令应用配置</span>
+/System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util <span class="nt">-t</span> <span class="c"># macOS Big Sur以及新版本macOS运行此命令应用配置</span>
+<span class="nb">sudo </span>diskutil apfs addVolume diskX APFS <span class="s1">'NixStore'</span> <span class="nt">-mountpoint</span> /nix <span class="c"># 创建挂载点，diskX为从`diskutil list`命令中看到的卷标</span>
+<span class="nb">sudo </span>vifs <span class="c"># 添加`LABEL=NixStore /nix apfs rw,nobrowse`，使得/nix开机自动挂载</span>
+./install-nix.sh <span class="nt">--darwin-use-unencryped-nix-store-volume</span> <span class="nt">--daemon</span> <span class="c"># 执行安装</span>
+</code></pre></div></div>
+
+<p>第二个是镜像源的配置，修改镜像源需要修改<code class="language-plaintext highlighter-rouge">/etc/nix/nix.conf</code>文件，如果是用的NixOS或者nix-darwin，可以修改系统配置中的<code class="language-plaintext highlighter-rouge">nix.binaryCaches</code>来更改：</p>
+<ol>
+  <li>使用<code class="language-plaintext highlighter-rouge">/etc/nix/nix.conf</code>修改：
+    <div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>substituters <span class="o">=</span> MIRROR1 MIRROR2 MIRROR3
+</code></pre></div>    </div>
+    <p>修改完之后，需要重启nix-daemon使得改动生效</p>
+  </li>
+  <li>在系统配置里修改：
+    <div class="language-nix highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span> <span class="nv">config</span><span class="p">,</span> <span class="nv">lib</span><span class="p">,</span> <span class="nv">pkgs</span><span class="p">,</span> <span class="o">...</span> <span class="p">}:</span> <span class="p">{</span>
+  <span class="o">...</span>
+  <span class="nv">nix</span><span class="o">.</span><span class="nv">binaryCaches</span> <span class="o">=</span> <span class="nv">lib</span><span class="o">.</span><span class="nv">mkForce</span> <span class="p">[</span>
+ <span class="s2">"MIRROR1"</span>
+ <span class="s2">"MIRROR2"</span>
+ <span class="s2">"MIRROR3"</span>
+  <span class="p">];</span>
+  <span class="o">...</span>
+<span class="p">}</span>
+</code></pre></div>    </div>
+    <p>修改完系统配置后，需要用<code class="language-plaintext highlighter-rouge">nixos-rebuild switch</code>或者<code class="language-plaintext highlighter-rouge">darwin-rebuild switch</code>使得改动生效</p>
+  </li>
+</ol>
+
+<p>第三个是nix-daemon，Linux的nix-daemon使用systemd管理，重启只需要<code class="language-plaintext highlighter-rouge">systemctl restart nix-daemon</code>就可以了。macOS的nix-daemon使用launchctl管理，需要先卸载nix-daemon的配置项，然后再加载，配置项位于<code class="language-plaintext highlighter-rouge">/Library/LaunchDaemons/org.nixos.nix-daemon.plist</code>，都需要在root权限下执行。</p>
+
+<p>安装完毕之后，退出终端再重新打开一个终端，可以使用<code class="language-plaintext highlighter-rouge">nix-shell -p nix-info --run "nix-info -m"</code>命令查看系统基本信息，同时也可以检查Nix的运行有没有问题。</p>
+
+<p>到这基本上就完成了Nix的安装，关于Nix的使用，后续会专门发文章来讲述，诸如开发环境配置，系统配置等等。敬请期待。</p>
+
+
+    </main><footer>
+  Powered by Jekyll and GNU Guix, designed by <a href="https://github.com/c4dr01d" target="_blank">c4droid</a>. Since 2021
+</footer>
+</div>
+  </body>
+</html>
