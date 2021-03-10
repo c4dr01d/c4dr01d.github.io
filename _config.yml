@@ -1,0 +1,28 @@
+# Site settings
+title: c4droid's Blog
+email: c4droid@foxmail.com
+description: >- # this means to ignore newlines until "baseurl:"
+  先天领周天，盖周天之变，化吾为王！
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "https://c4dr01d.github.io"
+github_username: c4dr01d
+
+# Build settings
+theme: jekyll-theme-console
+plugins:
+  - jekyll-feed
+
+# Exclude file
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - Rakefile
+  - environment.scm
+
+# Theme settings
+header_pages:
+  - index.md
+  - about.md
+
+style: hacker
+footer: 'Powered by Jekyll and GNU Guix, designed by <a href="https://github.com/c4dr01d" target="_blank">c4droid</a>. Since 2021'
